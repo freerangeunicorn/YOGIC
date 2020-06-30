@@ -3,11 +3,20 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate, MigrateCommand
 from flask_script import Manager
-#from flask_restful import Resource, Api
+from flask_jwt import JWT
 import json
 
+def authenticate(user, auth):
+    if auth:
+        return user
+
+def identity():
+    pass
+
 #init app
+
 app = Flask(__name__)
+jwt = JWT(app, authenticate, identity)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config["SQLALCHEMY_DATABASE_URI"] = "postgres://Mai:Codeordie2019@localhost/yogic"
 db = SQLAlchemy(app)
@@ -29,10 +38,10 @@ class Teacher(db.Model):
     last_name = db.Column(db.String(80))
     years_experience = db.Column(db.Integer)
     default_timezone = db.Column(db.String(120))
-    email = db.Column(db.String(320))
+    email = db.Column(db.String(320))   
     password_hash = db.Column(db.String(256), nullable=False)
-
-
+    
+  
     yogastyle_id = db.relationship(
         'Yogastyle',
         secondary= yogastyle_teacher,  lazy='subquery',
@@ -77,6 +86,13 @@ class Review(db.Model):
 
 db.create_all() 
 
+def authenticate(user, auth):
+    if auth:
+        return user
+
+def identitity():
+    pass
+
 @app.route('/api/teacher', methods=['GET'])
 def get_teacher():
     print(type('teacher'))
@@ -96,50 +112,63 @@ def get_teacher():
 #sign up form in react will call this method
 @app.route('/api/teacher', methods=['POST'])
 def create_teacher():
-    print('create teacher')
+    for key, value in request.headers.items():
+        print(key, value)
     data = request.json
+    print(data)
     new_teacher = Teacher(
-        first_name = data['first_name'],
-        last_name = data['last_name'],
-        email = data['email'],
-        years_experience =  data['years_experience'],
-        default_timezone =  data['default_timezone'],
-        password_hash = set_password(data['password']),
-
+        first_name = data.get('first_name',''),
+        last_name = data.get('last_name',''),
+        email = data.get('email','').lower(),
+        years_experience =  int(data.get('years_experience',0)),
+        default_timezone =  data.get('default_timezone',''),
+        password_hash = set_password(data.get('email','').lower() + data.get('password', '')),
     )
+    db.session.add(new_teacher)
+    db.session.commit()
+    teacher_id = (new_teacher.id)
+    response = Response(json.dumps({'id':teacher_id}))
+    response.headers['Content-type'] = 'application/json'
+    return response
 
-@app.route('/login/teacher', methods=['POST'])
+
+
+@app.route('/api/login/teacher', methods=['POST'])
 def login_teacher():
     data = request.json
     print (data)
-    email = data['email']
-    password = data ['password']
-    teacher = Teacher.query.filter_by(email=email).first()
-    if not teacher:
-        return json.dumps('wrong password')
-    password_hash = teacher.password_hash
-    print (check_password(password_hash, email + password))
-    if check_password(password_hash, email + password):
-        return json.dumps('ok')
+    email = data.get('email','').lower()
+    password = data.get('password')
+
+    user = Teacher.query.filter_by(email=email).first()
+    if check_password(user.password_hash, email + password):
+        authenticate(user, True)
+        response = Response(json.dumps({'id':user.id}))
+        response.headers['Content-type'] = 'application/json'
+        #return response
     else:
         return json.dumps('wrong password')
 
 
+#signup form in React will call this method
 @app.route('/api/student', methods=['POST'])
 def create_student():
     data = request.json
+    print(data)
     new_student = Student(
-        first_name = data['first_name'],
-        last_name = data['last_name'],
-        email = data['email']  ##add the remaining columns
+        first_name = data.get('first_name',''),
+        last_name = data.get('last_name', ''),
+        email = data.get('email'),
+        password_hash = set_password(data.get('password')),
     )
     db.session.add(new_student)
     db.session.commit()
+    student_id = (new_student.id)
+    return Response(json.dumps({'id':student_id}), mimetype='application/json')
 
 @app.route('/api/student', methods=['GET'])
 def get_student():
     student = Student.query.all()
-    #print(type(teacher))
     list_student = [] 
     for _student in student:
         d_student = dict()
@@ -149,13 +178,9 @@ def get_student():
     return json.dumps(list_student)
 
 
-@app.route('/login/student', methods=['POST'])
+@app.route('/api/login/student', methods=['POST'])
 def login_student():
     
-        
-    #print(type(_teacher))
-    #return json.dumps(list_teacher)
-    #print(new_teacher)
     return json.dumps('ok')
 # call when create teacher send down email + password return value will be stored in the database
 def set_password( password):
@@ -217,8 +242,7 @@ def get_review():
         list_review.append(d_review)
     return json.dumps(list_review)
 
-   
-    
+
 
 
 #run server
