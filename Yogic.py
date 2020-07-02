@@ -1,9 +1,12 @@
-from flask import Flask, request, Response
+from flask import Flask, request, Response, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate, MigrateCommand
 from flask_script import Manager
-from flask_jwt import JWT
+from flask_jwt_extended import (
+JWTManager, jwt_required, create_access_token,
+get_jwt_identity
+)
 import json
 
 def authenticate(user, auth):
@@ -16,12 +19,15 @@ def identity():
 #init app
 
 app = Flask(__name__)
-jwt = JWT(app, authenticate, identity)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config["SQLALCHEMY_DATABASE_URI"] = "postgres://Mai:Codeordie2019@localhost/yogic"
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 manager = Manager(app)
+#setup the JWT Manager
+
+app.config['JWT_SECRET_KEY'] = 'bitcheswhocode199000302' #can I change the secret key again?
+jwt = JWTManager(app)
 
 manager.add_command('db', MigrateCommand)
 #api = Api(app)
@@ -38,7 +44,7 @@ class Teacher(db.Model):
     last_name = db.Column(db.String(80))
     years_experience = db.Column(db.Integer)
     default_timezone = db.Column(db.String(120))
-    email = db.Column(db.String(320))   
+    email = db.Column(db.String(320), index=True, unique=True)   #added index and unique key
     password_hash = db.Column(db.String(256), nullable=False)
     
   
@@ -94,10 +100,10 @@ def identitity():
     pass
 
 @app.route('/api/teacher', methods=['GET'])
+@jwt_required
 def get_teacher():
-    print(type('teacher'))
-    teacher = Teacher.query.all()
-    #print(type(teacher))
+    teacher_id=get_jwt_identity()
+    teacher = Teacher.query.filter_by(id=teacher_id)
     list_teacher = [] 
     for _teacher in teacher:
         d_teacher = dict()
@@ -135,19 +141,23 @@ def create_teacher():
 
 @app.route('/api/login/teacher', methods=['POST'])
 def login_teacher():
-    data = request.json
-    print (data)
-    email = data.get('email','').lower()
-    password = data.get('password')
+    email = request.json.get('email','').lower()
+    password = request.json.get('password',None)
+    if not email or not password:
+        return jsonify({"msg": "Email or password invalid"}), 400
 
+  
     user = Teacher.query.filter_by(email=email).first()
     if check_password(user.password_hash, email + password):
-        authenticate(user, True)
         response = Response(json.dumps({'id':user.id}))
+        access_token = create_access_token(identity=user.id)
+        response = Response(json.dumps({'access_token':access_token}))
         response.headers['Content-type'] = 'application/json'
-        #return response
+        return response
     else:
-        return json.dumps('wrong password')
+        response=Response(json.dumps('wrong email or password'))
+        response.headers['Content-type'] = 'application/json'
+        return response
 
 
 #signup form in React will call this method
@@ -159,7 +169,7 @@ def create_student():
         first_name = data.get('first_name',''),
         last_name = data.get('last_name', ''),
         email = data.get('email'),
-        password_hash = set_password(data.get('password')),
+        password_hash = set_password(data.get('email','').lower() + data.get('password', '')),
     )
     db.session.add(new_student)
     db.session.commit()
@@ -167,8 +177,10 @@ def create_student():
     return Response(json.dumps({'id':student_id}), mimetype='application/json')
 
 @app.route('/api/student', methods=['GET'])
+@jwt_required
 def get_student():
-    student = Student.query.all()
+    student_id = get_jwt_identity()
+    student = Student.query.filter_by(id=student_id)
     list_student = [] 
     for _student in student:
         d_student = dict()
@@ -180,13 +192,27 @@ def get_student():
 
 @app.route('/api/login/student', methods=['POST'])
 def login_student():
-    
-    return json.dumps('ok')
-# call when create teacher send down email + password return value will be stored in the database
+    email = request.json.get('email','').lower()
+    password = request.json.get('password',None)
+    if not email or not password:
+        return jsonify({"msg": "Email or password invalid"}), 400
+
+  
+    user = Student.query.filter_by(email=email).first()
+    if check_password(user.password_hash, email + password):
+        response = Response(json.dumps({'id':user.id}))   #how can the database now which user is a student and which is teacher?
+        access_token = create_access_token(identity=user.id)
+        response = Response(json.dumps({'access_token':access_token}))
+        response.headers['Content-type'] = 'application/json'
+        return response
+    else:
+        response=Response(json.dumps('wrong email or password'))
+        response.headers['Content-type'] = 'application/json'
+        return response
+        
 def set_password( password):
     password_hash = generate_password_hash(password)
     return password_hash 
-
     
 def check_password(password_hash, password):
     return check_password_hash(password_hash, password)
