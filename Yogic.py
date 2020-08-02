@@ -28,26 +28,26 @@ manager = Manager(app)
 
 app.config['JWT_SECRET_KEY'] = 'bitcheswhocode199000302' #can I change the secret key again?
 jwt = JWTManager(app)
-
 manager.add_command('db', MigrateCommand)
 #api = Api(app)
 
 yogastyle_teacher = db.Table('yogastyle_teacher',
     db.Column('teacher_id', db.Integer, db.ForeignKey('teacher.id'),primary_key=True),
     db.Column('yogastyle_id', db.Integer, db.ForeignKey('yogastyle.id'),primary_key=True),
-)   
+)
 
 class Teacher(db.Model):
     __tablename__ = 'teacher'
-    id = db.Column(db.Integer, primary_key=True) 
+    id = db.Column(db.Integer, primary_key=True)
     first_name = db.Column(db.String(80))
     last_name = db.Column(db.String(80))
     years_experience = db.Column(db.Integer)
     default_timezone = db.Column(db.String(120))
-    email = db.Column(db.String(320), index=True, unique=True)   #added index and unique key
+    email = db.Column(db.String(320), index=True, unique=True)
     password_hash = db.Column(db.String(256), nullable=False)
-    
-  
+    yogaclass = db.relationship('Yogaclass', backref='teacher', lazy=True)
+
+
     yogastyle_id = db.relationship(
         'Yogastyle',
         secondary= yogastyle_teacher,  lazy='subquery',
@@ -62,53 +62,55 @@ class Yogastyle(db.Model):
 
 class Student(db.Model):
     __tablename__ = 'student'
-    id = db.Column(db.Integer, primary_key=True) 
+    id = db.Column(db.Integer, primary_key=True)
     first_name = db.Column(db.String(120))
     last_name = db.Column(db.String(120))
     email = db.Column(db.String(320),index=True, unique=True)
     password_hash = db.Column(db.String(256), nullable=False)
     yogaclass = db.relationship('Yogaclass', backref='student', lazy=True)
-   
+
 class Yogaclass(db.Model):
     __tablename__ = 'yogaclass'
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(120))
     level = db.Column(db.String(120))
-    Price = db.Column(db.Float)
-    time = db.Column(db.DateTime(timezone=True), default=db.func.now())
+    price = db.Column(db.Float)
+    time = db.Column(db.DateTime, nullable=False)
     style = db.Column(db.String(240))
     description = db.Column(db.Text())
     student_id = db.Column(db.Integer, db.ForeignKey('student.id'),
-        nullable=False)
+        nullable=True)
     review_id = db.Column(db.Integer, db.ForeignKey('review.id'),
-        nullable=False)
+        nullable=True) 
+    teacher_id = db.Column(db.Integer, db.ForeignKey('teacher.id'),
+        nullable=False) 
+   
+        
 class Review(db.Model):
     __tablename__= 'review'
     id = db.Column(db.Integer, primary_key=True)
     review_title = db.Column(db.String(120))
     rating = db.Column(db.Text())
-    yogaclass = db.relationship('Yogaclass', backref='review', lazy=True)  
+    yogaclass = db.relationship('Yogaclass', backref='review', lazy=True)
 
 
-db.create_all() 
+db.create_all()
 
-def authenticate(user, auth):
-    if auth:
-        return user
-
-def identitity():
-    pass
 
 @app.route('/api/teacher', methods=['GET'])
 @jwt_required
 def get_teacher():
     teacher_id=get_jwt_identity()
+    print('teacher id',teacher_id)
     teacher = Teacher.query.filter_by(id=teacher_id)
-    list_teacher = [] 
+    list_teacher = []
     for _teacher in teacher:
         d_teacher = dict()
         d_teacher.update({'first_name': _teacher.first_name})
         d_teacher.update({'last_name': _teacher.last_name})
+        d_teacher.update({'default_timezone': _teacher.default_timezone})
+        d_teacher.update({'years_experience': _teacher.years_experience})
+        d_teacher.update({'id': _teacher.id})
         list_teacher.append(d_teacher)
         #print(type(_teacher))
     print(json.dumps(list_teacher))
@@ -131,9 +133,12 @@ def create_teacher():
         password_hash = set_password(data.get('email','').lower() + data.get('password', '')),
     )
     db.session.add(new_teacher)
-    db.session.commit()
-    teacher_id = (new_teacher.id)
-    response = Response(json.dumps({'id':teacher_id}))
+    try :
+        db.session.commit()
+        teacher_id = (new_teacher.id)
+        response = Response(json.dumps({'id':teacher_id}))
+    except:
+        response = Response(json.dumps({'error': 'Something went wrong,try again later'}))
     response.headers['Content-type'] = 'application/json'
     return response
 
@@ -146,7 +151,7 @@ def login_teacher():
     if not email or not password:
         return jsonify({"msg": "Email or password invalid"}), 400
 
-  
+
     user = Teacher.query.filter_by(email=email).first()
     if check_password(user.password_hash, email + password):
         response = Response(json.dumps({'id':user.id}))
@@ -180,10 +185,13 @@ def create_student():
 @jwt_required
 def get_student():
     student_id = get_jwt_identity()
+    print (student_id)
     student = Student.query.filter_by(id=student_id)
-    list_student = [] 
+
+    list_student = []
     for _student in student:
         d_student = dict()
+        d_student.update({'id':_student.id})
         d_student.update({'first_name': _student.first_name})
         d_student.update({'last_name': _student.last_name})
         list_student.append(d_student)
@@ -197,7 +205,7 @@ def login_student():
     if not email or not password:
         return jsonify({"msg": "Email or password invalid"}), 400
 
-  
+
     user = Student.query.filter_by(email=email).first()
     if check_password(user.password_hash, email + password):
         response = Response(json.dumps({'id':user.id}))   #how can the database now which user is a student and which is teacher?
@@ -209,11 +217,11 @@ def login_student():
         response=Response(json.dumps('wrong email or password'))
         response.headers['Content-type'] = 'application/json'
         return response
-        
+
 def set_password( password):
     password_hash = generate_password_hash(password)
-    return password_hash 
-    
+    return password_hash
+
 def check_password(password_hash, password):
     return check_password_hash(password_hash, password)
 
@@ -231,12 +239,12 @@ def create_yogaclass():
     db.session.commit()
 
 @app.route('/api/yogaclass', methods=['GET'])
-def get_yogaclass():
+def get_yogaclass():#yoga_class
     yogaclass = Yogaclass.query.all()
     #print(type(yogaclass))
-    list_yogaclass = [] 
-    for _yogaclass in yogaclass:
-        d_yogaclass = dict()
+    list_yogaclass = [] #yoga_classes_list
+    for _yogaclass in yogaclass: #yogaclass in yogaclasses
+        d_yogaclass = dict() #dont use dict d_yogaclass ={'title'}
         d_yogaclass.update({'title': _yogaclass.title})
         d_yogaclass.update({'level': _yogaclass.level})
         d_yogaclass.update({'price': _yogaclass.price})
@@ -245,33 +253,35 @@ def get_yogaclass():
         list_yogaclass.append(d_yogaclass)
     return json.dumps(list_yogaclass) ##route for filter
 
+
+
 @app.route('/api/review', methods=['POST'])
 def create_review():
     data = request.json
     new_review = Review(
         review_title = data['review_title'],
-        rating = data['rating'],   
+        rating = data['rating'],
     )
     db.session.add(new_review)
     db.session.commit()
 
 
 @app.route('/api/review', methods=['GET'])
-def get_review():
-    review = Review.query.all()
+def get_review(): 
+    review = Review.query.all() 
     #print(type(review))
-    list_review = [] 
+    list_review = []
     for _review in review:
-        d_review = dict()
+        d_review = dict() #make empty dict and call it d_review
         d_review.update({'review_title': _review.review_title})
         d_review.update({'rating': _review.rating})
         list_review.append(d_review)
     return json.dumps(list_review)
 
-
-
-
 #run server
 if __name__ =='__main__':
-    manager.run()  
-    app.run(debug = True)  
+    manager.run()
+    app.run(debug = True)
+
+
+    
