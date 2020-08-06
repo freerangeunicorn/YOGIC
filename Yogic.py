@@ -8,6 +8,9 @@ JWTManager, jwt_required, create_access_token,
 get_jwt_identity
 )
 import json
+from datetime import timedelta, time
+
+
 
 def authenticate(user, auth):
     if auth:
@@ -75,9 +78,11 @@ class Yogaclass(db.Model):
     title = db.Column(db.String(120))
     level = db.Column(db.String(120))
     price = db.Column(db.Float)
-    time = db.Column(db.DateTime, nullable=False)
+    time = db.Column(db.Time, nullable=False)
+    date = db.Column(db.Date, nullable=False)
     style = db.Column(db.String(240))
     description = db.Column(db.Text())
+    duration = db.Column (db.Integer)
     student_id = db.Column(db.Integer, db.ForeignKey('student.id'),
         nullable=True)
     review_id = db.Column(db.Integer, db.ForeignKey('review.id'),
@@ -119,6 +124,7 @@ def get_teacher():
 
 #sign up form in react will call this method
 @app.route('/api/teacher', methods=['POST'])
+
 def create_teacher():
     for key, value in request.headers.items():
         print(key, value)
@@ -226,17 +232,42 @@ def check_password(password_hash, password):
     return check_password_hash(password_hash, password)
 
 @app.route('/api/yogaclass', methods=['POST'])
+@jwt_required
 def create_yogaclass():
+    teacher_id=get_jwt_identity()
     data = request.json
+    start = data.get('time')[0]
+    end = data.get('time')[1]
+    token_start = start.split(':')
+    start_time = timedelta(hours=int(token_start[0]),minutes=int(token_start[1]))
+    token_end = end.split(':')
+    end_time = timedelta(hours=int(token_end[0]),minutes=int(token_end[1]))
+    duration = end_time - start_time
+    length = int(duration.total_seconds()/60) 
+    display_time = time(int(token_start[0]),int(token_end[1]))
+
+    print (data.get('time'))
     new_class = Yogaclass(
         title = data['title'],
         level = data['level'],
         price = data['price'],
         style = data['style'],
-        description = data['description']
+        date = data['date'],
+        time = display_time,
+        duration = length,
+        description = data['description'],
+        teacher_id = teacher_id,
     )
     db.session.add(new_class)
-    db.session.commit()
+    try :
+        db.session.commit()
+        yogaclass_id = (new_class.id)
+        response = Response(json.dumps({'id':yogaclass_id}))
+    except:
+        response = Response(json.dumps({'error': 'Something went wrong,try again later'}))
+    response.headers['Content-type'] = 'application/json'
+    return response
+   
 
 @app.route('/api/yogaclass', methods=['GET'])
 def get_yogaclass():#yoga_class
@@ -249,6 +280,9 @@ def get_yogaclass():#yoga_class
         d_yogaclass.update({'level': _yogaclass.level})
         d_yogaclass.update({'price': _yogaclass.price})
         d_yogaclass.update({'style': _yogaclass.style})
+        d_yogaclass.update({'style': _yogaclass.style})
+        d_yogaclass.update({'style': _yogaclass.style})
+        #add
         d_yogaclass.update({'description': _yogaclass.description})
         list_yogaclass.append(d_yogaclass)
     return json.dumps(list_yogaclass) ##route for filter
