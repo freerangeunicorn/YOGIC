@@ -272,21 +272,23 @@ def create_yogaclass():
 @app.route('/api/yogaclass', methods=['GET'])
 def get_yogaclass():#yoga_class
     yogaclass = Yogaclass.query.all()
+    
     #print(type(yogaclass))
     list_yogaclass = [] #yoga_classes_list
+    
     for _yogaclass in yogaclass: #yogaclass in yogaclasses
         d_yogaclass = dict() #dont use dict d_yogaclass ={'title'}
         d_yogaclass.update({'title': _yogaclass.title})
         d_yogaclass.update({'level': _yogaclass.level})
         d_yogaclass.update({'price': _yogaclass.price})
         d_yogaclass.update({'style': _yogaclass.style})
-        d_yogaclass.update({'style': _yogaclass.style})
-        d_yogaclass.update({'style': _yogaclass.style})
-        #add
+        d_yogaclass.update({'date': _yogaclass.date.isoformat()})
+        d_yogaclass.update({'time': str(_yogaclass.time)}) 
+        d_yogaclass.update({'duration': _yogaclass.duration})
         d_yogaclass.update({'description': _yogaclass.description})
         list_yogaclass.append(d_yogaclass)
-    return json.dumps(list_yogaclass) ##route for filter
-
+    return json.dumps(list_yogaclass) #route for filter and teacher profile
+    
 
 
 @app.route('/api/review', methods=['POST'])
@@ -311,7 +313,8 @@ def get_review():
         d_review.update({'rating': _review.rating})
         list_review.append(d_review)
     return json.dumps(list_review)
-
+    
+#sql joint here
 #run server
 if __name__ =='__main__':
     manager.run()
