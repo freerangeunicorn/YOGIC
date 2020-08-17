@@ -107,7 +107,7 @@ db.create_all()
 def get_teacher():
     teacher_id=get_jwt_identity()
     print('teacher id',teacher_id)
-    teacher = Teacher.query.filter_by(id=teacher_id)
+    teacher = Teacher.query.filter_by(id=teacher_id['teacher']) #get the key from the get_jwt_identity
     list_teacher = []
     for _teacher in teacher:
         d_teacher = dict()
@@ -161,7 +161,7 @@ def login_teacher():
     user = Teacher.query.filter_by(email=email).first()
     if check_password(user.password_hash, email + password):
         response = Response(json.dumps({'id':user.id}))
-        access_token = create_access_token(identity=user.id)
+        access_token = create_access_token(identity={'teacher':user.id})
         response = Response(json.dumps({'access_token':access_token}))
         response.headers['Content-type'] = 'application/json'
         return response
@@ -215,7 +215,7 @@ def login_student():
     user = Student.query.filter_by(email=email).first()
     if check_password(user.password_hash, email + password):
         response = Response(json.dumps({'id':user.id}))   #how can the database now which user is a student and which is teacher?
-        access_token = create_access_token(identity=user.id)
+        access_token = create_access_token(identity={'student':user.id})
         response = Response(json.dumps({'access_token':access_token}))
         response.headers['Content-type'] = 'application/json'
         return response
@@ -232,7 +232,7 @@ def check_password(password_hash, password):
     return check_password_hash(password_hash, password)
 
 @app.route('/api/yogaclass', methods=['POST'])
-@jwt_required
+@jwt_required # authorize teacher and student, check the dictionary and then authorize
 def create_yogaclass():
     teacher_id=get_jwt_identity()
     data = request.json
@@ -246,7 +246,7 @@ def create_yogaclass():
     length = int(duration.total_seconds()/60) 
     display_time = time(int(token_start[0]),int(token_end[1]))
 
-    print (data.get('time'))
+    print (teacher_id)
     new_class = Yogaclass(
         title = data['title'],
         level = data['level'],
@@ -270,10 +270,12 @@ def create_yogaclass():
    
 
 @app.route('/api/yogaclass', methods=['GET'])
-def get_yogaclass():#yoga_class
-    yogaclass = Yogaclass.query.all()
+@jwt_required
+def get_yogaclass():
+    token_data = get_jwt_identity()
+    yogaclass = Yogaclass.query.join(Teacher, Teacher.id==Yogaclass.teacher_id).add_columns(Teacher.id, Teacher.first_name,Teacher.last_name, Teacher.years_experience, Yogaclass.id, Yogaclass.title, Yogaclass.level, Yogaclass.price, Yogaclass.style, Yogaclass.date, Yogaclass.time, Yogaclass.duration, Yogaclass.description).filter(Teacher.id == Yogaclass.teacher_id).filter(Teacher.id == Yogaclass.teacher_id)
     
-    #print(type(yogaclass))
+    print(token_data['teacher'])
     list_yogaclass = [] #yoga_classes_list
     
     for _yogaclass in yogaclass: #yogaclass in yogaclasses
@@ -286,6 +288,8 @@ def get_yogaclass():#yoga_class
         d_yogaclass.update({'time': str(_yogaclass.time)}) 
         d_yogaclass.update({'duration': _yogaclass.duration})
         d_yogaclass.update({'description': _yogaclass.description})
+        d_yogaclass.update({'id':_yogaclass.id})
+
         list_yogaclass.append(d_yogaclass)
     return json.dumps(list_yogaclass) #route for filter and teacher profile
     
