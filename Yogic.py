@@ -190,7 +190,8 @@ def create_student():
 @app.route('/api/student', methods=['GET'])
 @jwt_required
 def get_student():
-    student_id = get_jwt_identity()
+    claim = get_jwt_identity()
+    student_id = claim.get('student')
     print (student_id)
     student = Student.query.filter_by(id=student_id)
 
@@ -234,7 +235,10 @@ def check_password(password_hash, password):
 @app.route('/api/yogaclass', methods=['POST'])
 @jwt_required # authorize teacher and student, check the dictionary and then authorize
 def create_yogaclass():
-    teacher_id=get_jwt_identity()
+    claim = get_jwt_identity()
+    teacher_id = claim.get('teacher')
+    if not teacher_id:
+        return Response ('You are not authorized'), 401
     data = request.json
     start = data.get('time')[0]
     end = data.get('time')[1]
@@ -248,14 +252,14 @@ def create_yogaclass():
 
     print (teacher_id)
     new_class = Yogaclass(
-        title = data['title'],
-        level = data['level'],
-        price = data['price'],
-        style = data['style'],
-        date = data['date'],
+        title = data.get('title'),
+        level = data.get('level'),
+        price = data.get('price'),
+        style = data.get('style'),
+        date = data.get('date'),
         time = display_time,
         duration = length,
-        description = data['description'],
+        description = data.get('description'),
         teacher_id = teacher_id,
     )
     db.session.add(new_class)
@@ -263,19 +267,25 @@ def create_yogaclass():
         db.session.commit()
         yogaclass_id = (new_class.id)
         response = Response(json.dumps({'id':yogaclass_id}))
-    except:
+    except Exception as error:
+        print(error)
         response = Response(json.dumps({'error': 'Something went wrong,try again later'}))
     response.headers['Content-type'] = 'application/json'
-    return response
+    print (response)
+    return response 
    
 
 @app.route('/api/yogaclass', methods=['GET'])
 @jwt_required
 def get_yogaclass():
     token_data = get_jwt_identity()
-    yogaclass = Yogaclass.query.join(Teacher, Teacher.id==Yogaclass.teacher_id).add_columns(Teacher.id, Teacher.first_name,Teacher.last_name, Teacher.years_experience, Yogaclass.id, Yogaclass.title, Yogaclass.level, Yogaclass.price, Yogaclass.style, Yogaclass.date, Yogaclass.time, Yogaclass.duration, Yogaclass.description).filter(Teacher.id == Yogaclass.teacher_id).filter(Teacher.id == Yogaclass.teacher_id)
-    
-    print(token_data['teacher'])
+    if 'student' in token_data:
+        yogaclass = Yogaclass.query.join(Teacher, Teacher.id==Yogaclass.teacher_id,isouter=True).add_columns(Teacher.first_name,Teacher.last_name, Teacher.years_experience, Yogaclass.id, Yogaclass.title, Yogaclass.level, Yogaclass.price, Yogaclass.style, Yogaclass.date, Yogaclass.time, Yogaclass.duration, Yogaclass.description)
+    else:
+        teacher_id = token_data.get('teacher')
+        yogaclass = Yogaclass.query.join(Teacher, Teacher.id==Yogaclass.teacher_id,isouter=True).add_columns(Teacher.first_name,Teacher.last_name, Teacher.years_experience, Yogaclass.id, Yogaclass.title, Yogaclass.level, Yogaclass.price, Yogaclass.style, Yogaclass.date, Yogaclass.time, Yogaclass.duration, Yogaclass.description).filter(Teacher.id == Yogaclass.teacher_id).filter(Teacher.id == teacher_id)
+    #print(token_data['teacher'])
+
     list_yogaclass = [] #yoga_classes_list
     
     for _yogaclass in yogaclass: #yogaclass in yogaclasses
