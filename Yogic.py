@@ -179,7 +179,7 @@ def create_student():
     new_student = Student(
         first_name = data.get('first_name',''),
         last_name = data.get('last_name', ''),
-        email = data.get('email'),
+        email = data.get('email', ''),
         password_hash = set_password(data.get('email','').lower() + data.get('password', '')),
     )
     db.session.add(new_student)
@@ -203,6 +203,20 @@ def get_student():
         d_student.update({'last_name': _student.last_name})
         list_student.append(d_student)
     return json.dumps(list_student)
+
+@app.route('/api/bookclass', methods=['PUT'])
+@jwt_required
+def book():
+    claim = get_jwt_identity()
+    data = request.json
+    student_id = claim.get('student')
+    print(data, data.get('id', ''))
+    student = Student.query.filter_by(id=student_id)
+    yoga_class = Yogaclass.query.filter_by(id=data.get('id')).first()
+    yoga_class.student_id = student_id
+    db.session.commit()
+    return json.dumps({yoga_class}) #return response
+
 
 
 @app.route('/api/login/student', methods=['POST'])
@@ -284,14 +298,13 @@ def get_yogaclass():
     else:
         teacher_id = token_data.get('teacher')
         yogaclass = Yogaclass.query.join(Teacher, Teacher.id==Yogaclass.teacher_id,isouter=True).add_columns(Teacher.first_name,Teacher.last_name, Teacher.years_experience, Yogaclass.id, Yogaclass.title, Yogaclass.level, Yogaclass.price, Yogaclass.style, Yogaclass.date, Yogaclass.time, Yogaclass.duration, Yogaclass.description).filter(Teacher.id == Yogaclass.teacher_id).filter(Teacher.id == teacher_id)
-    #print(token_data['teacher'])
+    print(yogaclass)
 
     list_yogaclass = [] #yoga_classes_list
     
     for _yogaclass in yogaclass: #yogaclass in yogaclasses
         d_yogaclass = dict() #dont use dict d_yogaclass ={'title'}
         d_yogaclass.update({'title': _yogaclass.title})
-        d_yogaclass.update({'level': _yogaclass.level})
         d_yogaclass.update({'price': _yogaclass.price})
         d_yogaclass.update({'style': _yogaclass.style})
         d_yogaclass.update({'date': _yogaclass.date.isoformat()})
@@ -299,6 +312,9 @@ def get_yogaclass():
         d_yogaclass.update({'duration': _yogaclass.duration})
         d_yogaclass.update({'description': _yogaclass.description})
         d_yogaclass.update({'id':_yogaclass.id})
+        d_yogaclass.update({'first_name': _yogaclass.first_name})
+        d_yogaclass.update({'last_name': _yogaclass.last_name})
+        d_yogaclass.update({'years_experience': _yogaclass.years_experience})
 
         list_yogaclass.append(d_yogaclass)
     return json.dumps(list_yogaclass) #route for filter and teacher profile
