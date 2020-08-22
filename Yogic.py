@@ -8,9 +8,9 @@ JWTManager, jwt_required, create_access_token,
 get_jwt_identity
 )
 import json
-from datetime import timedelta, time
+from datetime import timedelta, time, datetime
 
-
+import requests
 
 def authenticate(user, auth):
     if auth:
@@ -215,7 +215,20 @@ def book():
     yoga_class = Yogaclass.query.filter_by(id=data.get('id')).first()
     yoga_class.student_id = student_id
     db.session.commit()
-    return json.dumps({yoga_class}) #return response
+    #put the send_email
+    return json.dumps({'confirmation': 'true'})
+
+@app.route('/api/email')
+@jwt_required
+def send_email():
+    requests.post(
+    "https://api.mailgun.net/v3/sandbox6c3b6021b14e49cdb4b5a10afdc9ec38.mailgun.org/messages",
+    auth=("api", "1d02fe728ef4320c72a1e19a2598ff39-203ef6d0-8110ee71"),
+    data={"from": "maja.hoang@gmail.com",
+        "to": "pronewgen92@gmail.com",
+        "subject": "Hello",
+        "text": "Testing some Mailgun awesomness!"})
+    return json.dumps({'email': 'sent'})
 
 
 
@@ -229,7 +242,7 @@ def login_student():
 
     user = Student.query.filter_by(email=email).first()
     if check_password(user.password_hash, email + password):
-        response = Response(json.dumps({'id':user.id}))   #how can the database now which user is a student and which is teacher?
+        response = Response(json.dumps({'id':user.id}))  
         access_token = create_access_token(identity={'student':user.id})
         response = Response(json.dumps({'access_token':access_token}))
         response.headers['Content-type'] = 'application/json'
@@ -293,11 +306,43 @@ def create_yogaclass():
 @jwt_required
 def get_yogaclass():
     token_data = get_jwt_identity()
+    qry = request.args.get('filter')
+    tokens = qry.split(',')
+    """
+    for token in tokens:
+        parts = token.split(':')
+        field = parts[0]
+        operator = parts[1]
+        value = parts[2]
+        yogaclass = Yogaclass.query.filter(Yogaclass==2).filter
+    """
     if 'student' in token_data:
-        yogaclass = Yogaclass.query.join(Teacher, Teacher.id==Yogaclass.teacher_id,isouter=True).add_columns(Teacher.first_name,Teacher.last_name, Teacher.years_experience, Yogaclass.id, Yogaclass.title, Yogaclass.level, Yogaclass.price, Yogaclass.style, Yogaclass.date, Yogaclass.time, Yogaclass.duration, Yogaclass.description)
+        print(qry)
+        date = None
+        time = None
+        style = None 
+        for token in tokens:
+            # only 3 fields and = operators are supported
+            parts = token.split('^')
+            field = parts[0] 
+            value = parts[2]
+            if field == 'date':
+                date = datetime.strptime(value, '%Y-%m-%d') #which format is it parsing
+            elif field == 'time':
+                time = value
+            elif field == 'style':
+                style = value
+
+        yogaclass = Yogaclass.query.join(Teacher, Teacher.id==Yogaclass.teacher_id,isouter=True).add_columns(Teacher.first_name,Teacher.last_name, Teacher.years_experience, Yogaclass.id, Yogaclass.title, Yogaclass.level, Yogaclass.price, Yogaclass.style, Yogaclass.date, Yogaclass.time, Yogaclass.duration, Yogaclass.description, Yogaclass.student_id)
+        print('date = {} time = {} style = {}'.format(date, time, style))
+        yogaclass = yogaclass.filter(Yogaclass.style == style)
+        yogaclass = yogaclass.filter(Yogaclass.date == date)
+        yogaclass = yogaclass.filter(Yogaclass.time == time)
+       
+
     else:
         teacher_id = token_data.get('teacher')
-        yogaclass = Yogaclass.query.join(Teacher, Teacher.id==Yogaclass.teacher_id,isouter=True).add_columns(Teacher.first_name,Teacher.last_name, Teacher.years_experience, Yogaclass.id, Yogaclass.title, Yogaclass.level, Yogaclass.price, Yogaclass.style, Yogaclass.date, Yogaclass.time, Yogaclass.duration, Yogaclass.description).filter(Teacher.id == Yogaclass.teacher_id).filter(Teacher.id == teacher_id)
+        yogaclass = Yogaclass.query.join(Teacher, Teacher.id==Yogaclass.teacher_id,isouter=True).add_columns(Teacher.first_name,Teacher.last_name, Teacher.years_experience, Yogaclass.id, Yogaclass.title, Yogaclass.level, Yogaclass.price, Yogaclass.style, Yogaclass.date, Yogaclass.time, Yogaclass.duration, Yogaclass.description, Yogaclass.student_id).filter(Teacher.id == Yogaclass.teacher_id).filter(Teacher.id == teacher_id)
     print(yogaclass)
 
     list_yogaclass = [] #yoga_classes_list
@@ -315,6 +360,9 @@ def get_yogaclass():
         d_yogaclass.update({'first_name': _yogaclass.first_name})
         d_yogaclass.update({'last_name': _yogaclass.last_name})
         d_yogaclass.update({'years_experience': _yogaclass.years_experience})
+
+        d_yogaclass.update({'student_id':_yogaclass.student_id})
+
 
         list_yogaclass.append(d_yogaclass)
     return json.dumps(list_yogaclass) #route for filter and teacher profile
