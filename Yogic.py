@@ -116,6 +116,7 @@ def get_teacher():
         d_teacher.update({'default_timezone': _teacher.default_timezone})
         d_teacher.update({'years_experience': _teacher.years_experience})
         d_teacher.update({'id': _teacher.id})
+        d_teacher.update({'email': _teacher.email})
         list_teacher.append(d_teacher)
         #print(type(_teacher))
     print(json.dumps(list_teacher))
