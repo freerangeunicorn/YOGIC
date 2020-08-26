@@ -1,4 +1,5 @@
 from flask import Flask, request, Response, jsonify
+from mailjet_rest import Client
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate, MigrateCommand
@@ -8,9 +9,10 @@ JWTManager, jwt_required, create_access_token,
 get_jwt_identity
 )
 import json
+import os
 from datetime import timedelta, time, datetime
 
-import requests
+
 
 def authenticate(user, auth):
     if auth:
@@ -172,6 +174,25 @@ def login_teacher():
         return response
 
 
+
+@app.route('/api/teacher', methods=['PUT'])
+@jwt_required
+def edit_teacher():
+    claim = get_jwt_identity()
+    data = request.json
+    teacher_id = claim.get('teacher')
+    print(data, data.get('id', ''))
+    teacher = Teacher.query.filter_by(id=teacher_id) 
+    for _teacher in teacher:
+        _teacher.first_name=data.get('first_name')
+        _teacher.last_name=data.get('last_name')
+        _teacher.years_experience=data.get('years_experience')
+        _teacher.email=data.get('email')
+        
+    db.session.commit()
+    return jsonify({ }), 200
+
+    
 #signup form in React will call this method
 @app.route('/api/student', methods=['POST'])
 def create_student():
@@ -208,6 +229,9 @@ def get_student():
 @app.route('/api/bookclass', methods=['PUT'])
 @jwt_required
 def book():
+    api_key = 'e63418a078174be4d3ddd19b1b670397'
+    api_secret = '232cfc28d559064e12708e280e386010'
+    mailjet = Client(auth=(api_key, api_secret), version='v3.1')
     claim = get_jwt_identity()
     data = request.json
     student_id = claim.get('student')
@@ -215,21 +239,33 @@ def book():
     student = Student.query.filter_by(id=student_id)
     yoga_class = Yogaclass.query.filter_by(id=data.get('id')).first()
     yoga_class.student_id = student_id
+    
+    
+    data = {
+    'Messages': [
+        {
+        "From": {
+        "Email": "maja.hoang@gmail.com",
+        "Name": "Mai"
+        },
+        "To": [
+        {
+        "Email": "josef@jschauer.com", #pass in the student email here
+        "Name": "Phil"                   #pass in the student name here
+        }
+        ],
+        "Subject": "Class booked for " + yoga_class.title,
+        "TextPart": "Namaste",
+        "HTMLPart": "<h3>Dear passenger 1, welcome to <a href='https://www.mailjet.com/'>Mailjet</a>!</h3><br />May the delivery force be with you!",
+        "CustomID": "AppGettingStartedTest"
+        }
+    ]
+    }
+    result = mailjet.send.create(data=data)
     db.session.commit()
-    #put the send_email
     return json.dumps({'confirmation': 'true'})
 
-@app.route('/api/email')
-@jwt_required
-def send_email():
-    requests.post(
-    "https://api.mailgun.net/v3/sandbox6c3b6021b14e49cdb4b5a10afdc9ec38.mailgun.org/messages",
-    auth=("api", "1d02fe728ef4320c72a1e19a2598ff39-203ef6d0-8110ee71"),
-    data={"from": "maja.hoang@gmail.com",
-        "to": "pronewgen92@gmail.com",
-        "subject": "Hello",
-        "text": "Testing some Mailgun awesomness!"})
-    return json.dumps({'email': 'sent'})
+
 
 
 
@@ -249,7 +285,7 @@ def login_student():
         response.headers['Content-type'] = 'application/json'
         return response
     else:
-        response=Response(json.dumps('wrong email or password'))
+        response = Response(json.dumps('wrong email or password'))
         response.headers['Content-type'] = 'application/json'
         return response
 
@@ -308,37 +344,36 @@ def create_yogaclass():
 def get_yogaclass():
     token_data = get_jwt_identity()
     qry = request.args.get('filter')
-    tokens = qry.split(',')
-    """
-    for token in tokens:
-        parts = token.split(':')
-        field = parts[0]
-        operator = parts[1]
-        value = parts[2]
-        yogaclass = Yogaclass.query.filter(Yogaclass==2).filter
-    """
+    tokens = None
+    if qry:
+        tokens = qry.split(',')
+   
     if 'student' in token_data:
         print(qry)
         date = None
         time = None
-        style = None 
-        for token in tokens:
-            # only 3 fields and = operators are supported
-            parts = token.split('^')
-            field = parts[0] 
-            value = parts[2]
-            if field == 'date':
-                date = datetime.strptime(value, '%Y-%m-%d') #which format is it parsing
-            elif field == 'time':
-                time = value
-            elif field == 'style':
-                style = value
-
+        style = None
+        if tokens != None: 
+            for token in tokens:
+                # only 3 fields and = operators are supported
+                parts = token.split('^')
+                field = parts[0] 
+                value = parts[2]
+                if field == 'date':
+                    date = datetime.strptime(value, '%Y-%m-%d') #which format is it parsing
+                elif field == 'time':
+                    time = value
+                elif field == 'style':
+                    style = value
+        print('see what style is', type(style))
         yogaclass = Yogaclass.query.join(Teacher, Teacher.id==Yogaclass.teacher_id,isouter=True).add_columns(Teacher.first_name,Teacher.last_name, Teacher.years_experience, Yogaclass.id, Yogaclass.title, Yogaclass.level, Yogaclass.price, Yogaclass.style, Yogaclass.date, Yogaclass.time, Yogaclass.duration, Yogaclass.description, Yogaclass.student_id)
         print('date = {} time = {} style = {}'.format(date, time, style))
-        yogaclass = yogaclass.filter(Yogaclass.style == style)
-        yogaclass = yogaclass.filter(Yogaclass.date == date)
-        yogaclass = yogaclass.filter(Yogaclass.time == time)
+        if style != None:
+            yogaclass = yogaclass.filter(Yogaclass.style == style)
+        if date != None:
+            yogaclass = yogaclass.filter(Yogaclass.date == date)
+        if  time != None:
+            yogaclass = yogaclass.filter(Yogaclass.time == time)
        
 
     else:
