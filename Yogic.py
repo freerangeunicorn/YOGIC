@@ -10,7 +10,7 @@ get_jwt_identity
 )
 import json
 import os
-from datetime import timedelta, time, datetime
+from datetime import time, datetime, timedelta
 
 
 
@@ -25,13 +25,16 @@ def identity():
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config["SQLALCHEMY_DATABASE_URI"] = "postgres://Mai:Codeordie2019@localhost/yogic"
+app.config['SQLALCHEMY_DATABASE_URI'] = "postgres://Mai:Codeordie2019@localhost/yogic" #environment file
+
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 manager = Manager(app)
 #setup the JWT Manager
 
-app.config['JWT_SECRET_KEY'] = 'bitcheswhocode199000302' #can I change the secret key again?
+app.config['JWT_SECRET_KEY'] = 'bitcheswhocode199000302' #can I change the secret key again? #environment file
+expires = timedelta(days=1)
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = expires
 jwt = JWTManager(app)
 manager.add_command('db', MigrateCommand)
 #api = Api(app)
@@ -251,7 +254,7 @@ def book():
         "To": [
         {
         "Email": "josef@jschauer.com", #pass in the student email here
-        "Name": "Phil"                   #pass in the student name here
+        "Name": " "  + student_id.first_name,              #pass in the student name here
         }
         ],
         "Subject": "Class booked for " + yoga_class.title,
@@ -396,6 +399,7 @@ def get_yogaclass():
         d_yogaclass.update({'first_name': _yogaclass.first_name})
         d_yogaclass.update({'last_name': _yogaclass.last_name})
         d_yogaclass.update({'years_experience': _yogaclass.years_experience})
+        d_yogaclass.update({'level': _yogaclass.level})
 
         d_yogaclass.update({'student_id':_yogaclass.student_id})
 
