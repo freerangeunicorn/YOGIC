@@ -400,7 +400,6 @@ def get_yogaclass():
         d_yogaclass.update({'last_name': _yogaclass.last_name})
         d_yogaclass.update({'years_experience': _yogaclass.years_experience})
         d_yogaclass.update({'level': _yogaclass.level})
-
         d_yogaclass.update({'student_id':_yogaclass.student_id})
 
 
