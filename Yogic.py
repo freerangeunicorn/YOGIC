@@ -10,8 +10,14 @@ get_jwt_identity
 )
 import json
 import os
+import logging
+from dotenv import load_dotenv
+load_dotenv()
 from datetime import time, datetime, timedelta
 
+
+logging.basicConfig(level=logging.INFO)
+logging.info('This will get logged')
 
 
 def authenticate(user, auth):
@@ -24,15 +30,16 @@ def identity():
 #init app
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SQLALCHEMY_DATABASE_URI'] = "postgres://Mai:Codeordie2019@localhost/yogic" #environment file
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = os.getenv('SQLALCHEMY_TRACK_MODIFICATIONS')
+logging.info(os.getenv('SQLALCHEMY_TRACK_MODIFICATIONS'))
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('SQLALCHEMY_DATABASE_URI')
 
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 manager = Manager(app)
 #setup the JWT Manager
 
-app.config['JWT_SECRET_KEY'] = 'bitcheswhocode199000302' #can I change the secret key again? #environment file
+app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
 expires = timedelta(days=1)
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = expires
 jwt = JWTManager(app)
@@ -111,7 +118,7 @@ db.create_all()
 @jwt_required
 def get_teacher():
     teacher_id=get_jwt_identity()
-    print('teacher id',teacher_id)
+    logging.info('teacher id',teacher_id)
     teacher = Teacher.query.filter_by(id=teacher_id['teacher']) #get the key from the get_jwt_identity
     list_teacher = []
     for _teacher in teacher:
@@ -123,19 +130,16 @@ def get_teacher():
         d_teacher.update({'id': _teacher.id})
         d_teacher.update({'email': _teacher.email})
         list_teacher.append(d_teacher)
-        #print(type(_teacher))
-    print(json.dumps(list_teacher))
+        
+    logging.info(json.dumps(list_teacher))
     return Response(json.dumps(list_teacher), mimetype='application/json')
 
 
 #sign up form in react will call this method
 @app.route('/api/teacher', methods=['POST'])
-
 def create_teacher():
-    for key, value in request.headers.items():
-        print(key, value)
     data = request.json
-    print(data)
+    logging.info(data)
     new_teacher = Teacher(
         first_name = data.get('first_name',''),
         last_name = data.get('last_name',''),
@@ -184,14 +188,13 @@ def edit_teacher():
     claim = get_jwt_identity()
     data = request.json
     teacher_id = claim.get('teacher')
-    print(data, data.get('id', ''))
+    logging.info(data, data.get('id', ''))
     teacher = Teacher.query.filter_by(id=teacher_id) 
     for _teacher in teacher:
         _teacher.first_name=data.get('first_name')
         _teacher.last_name=data.get('last_name')
         _teacher.years_experience=data.get('years_experience')
         _teacher.email=data.get('email')
-        
     db.session.commit()
     return jsonify({ }), 200
 
@@ -200,7 +203,6 @@ def edit_teacher():
 @app.route('/api/student', methods=['POST'])
 def create_student():
     data = request.json
-    print(data)
     new_student = Student(
         first_name = data.get('first_name',''),
         last_name = data.get('last_name', ''),
@@ -217,7 +219,7 @@ def create_student():
 def get_student():
     claim = get_jwt_identity()
     student_id = claim.get('student')
-    print (student_id)
+    logging.info(student_id)
     student = Student.query.filter_by(id=student_id)
 
     list_student = []
@@ -232,13 +234,13 @@ def get_student():
 @app.route('/api/bookclass', methods=['PUT'])
 @jwt_required
 def book():
-    api_key = 'e63418a078174be4d3ddd19b1b670397'
-    api_secret = '232cfc28d559064e12708e280e386010'
-    mailjet = Client(auth=(api_key, api_secret), version='v3.1')
+    MAILJET_KEY = os.getenv('MAILJET_KEY')
+    API_SECRET = os.getenv('API_SECRET')
+    mailjet = Client(auth=( MAILJET_KEY , API_SECRET), version='v3.1')
     claim = get_jwt_identity()
     data = request.json
     student_id = claim.get('student')
-    print(data, data.get('id', ''))
+    logging.info(data, data.get('id', ''))
     student = Student.query.filter_by(id=student_id)
     yoga_class = Yogaclass.query.filter_by(id=data.get('id')).first()
     yoga_class.student_id = student_id
@@ -248,13 +250,13 @@ def book():
     'Messages': [
         {
         "From": {
-        "Email": "maja.hoang@gmail.com",
+        "Email": " " + yoga_class.teacher_id.email,
         "Name": "Mai"
         },
         "To": [
         {
-        "Email": "josef@jschauer.com", #pass in the student email here
-        "Name": " "  + student_id.first_name,              #pass in the student name here
+        "Email":" " + student.email, #pass in the student email here
+        "Name": " "  + student.first_name,              #pass in the student name here
         }
         ],
         "Subject": "Class booked for " + yoga_class.title,
@@ -267,8 +269,6 @@ def book():
     result = mailjet.send.create(data=data)
     db.session.commit()
     return json.dumps({'confirmation': 'true'})
-
-
 
 
 
@@ -317,7 +317,7 @@ def create_yogaclass():
     length = int(duration.total_seconds()/60) 
     display_time = time(int(token_start[0]),int(token_end[1]))
 
-    print (teacher_id)
+    logging.info(teacher_id)
     new_class = Yogaclass(
         title = data.get('title'),
         level = data.get('level'),
@@ -335,10 +335,10 @@ def create_yogaclass():
         yogaclass_id = (new_class.id)
         response = Response(json.dumps({'id':yogaclass_id}))
     except Exception as error:
-        print(error)
+        logging.info(error)
         response = Response(json.dumps({'error': 'Something went wrong,try again later'}))
     response.headers['Content-type'] = 'application/json'
-    print (response)
+    logging.info(response)
     return response 
    
 
@@ -352,7 +352,7 @@ def get_yogaclass():
         tokens = qry.split(',')
    
     if 'student' in token_data:
-        print(qry)
+        logging.info(qry)
         date = None
         time = None
         style = None
@@ -368,9 +368,9 @@ def get_yogaclass():
                     time = value
                 elif field == 'style':
                     style = value
-        print('see what style is', type(style))
+        logging.info('see what style is', type(style))
         yogaclass = Yogaclass.query.join(Teacher, Teacher.id==Yogaclass.teacher_id,isouter=True).add_columns(Teacher.first_name,Teacher.last_name, Teacher.years_experience, Yogaclass.id, Yogaclass.title, Yogaclass.level, Yogaclass.price, Yogaclass.style, Yogaclass.date, Yogaclass.time, Yogaclass.duration, Yogaclass.description, Yogaclass.student_id)
-        print('date = {} time = {} style = {}'.format(date, time, style))
+        logging.info('date = {} time = {} style = {}'.format(date, time, style))
         if style != None:
             yogaclass = yogaclass.filter(Yogaclass.style == style)
         if date != None:
@@ -382,7 +382,7 @@ def get_yogaclass():
     else:
         teacher_id = token_data.get('teacher')
         yogaclass = Yogaclass.query.join(Teacher, Teacher.id==Yogaclass.teacher_id,isouter=True).add_columns(Teacher.first_name,Teacher.last_name, Teacher.years_experience, Yogaclass.id, Yogaclass.title, Yogaclass.level, Yogaclass.price, Yogaclass.style, Yogaclass.date, Yogaclass.time, Yogaclass.duration, Yogaclass.description, Yogaclass.student_id).filter(Teacher.id == Yogaclass.teacher_id).filter(Teacher.id == teacher_id)
-    print(yogaclass)
+    logging.info(yogaclass)
 
     list_yogaclass = [] #yoga_classes_list
     
@@ -422,7 +422,6 @@ def create_review():
 @app.route('/api/review', methods=['GET'])
 def get_review(): 
     review = Review.query.all() 
-    #print(type(review))
     list_review = []
     for _review in review:
         d_review = dict() #make empty dict and call it d_review
