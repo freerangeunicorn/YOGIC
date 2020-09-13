@@ -29,7 +29,7 @@ def identity():
 
 #init app
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='./build', static_url_path='/')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = os.getenv('SQLALCHEMY_TRACK_MODIFICATIONS')
 logging.info(os.getenv('SQLALCHEMY_TRACK_MODIFICATIONS'))
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('SQLALCHEMY_DATABASE_URI')
@@ -113,6 +113,9 @@ class Review(db.Model):
 
 db.create_all()
 
+@app.route('/')
+def index():
+    return app.send_static_file('index.html')
 
 @app.route('/api/teacher', methods=['GET'])
 @jwt_required
@@ -434,7 +437,7 @@ def get_review():
 #run server
 if __name__ =='__main__':
     manager.run()
-    app.run(debug = True)
+    app.run(host='0.0.0.0', debug=False, port=os.environ.get('PORT', 80))
 
 
     
