@@ -139,7 +139,6 @@ def get_teacher():
 @app.route('/api/teacher', methods=['POST'])
 def create_teacher():
     data = request.json
-    logging.info(data)
     new_teacher = Teacher(
         first_name = data.get('first_name',''),
         last_name = data.get('last_name',''),
@@ -153,6 +152,7 @@ def create_teacher():
         db.session.commit()
         teacher_id = (new_teacher.id)
         response = Response(json.dumps({'id':teacher_id}))
+        logging.info('Teacher account created')
     except:
         response = Response(json.dumps({'error': 'Something went wrong,try again later'}))
     response.headers['Content-type'] = 'application/json'
