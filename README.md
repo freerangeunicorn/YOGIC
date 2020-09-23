@@ -7,7 +7,7 @@ Yoga platform that allows you to practice yoga with a teacher anywhere in the wo
 
 * [x] The user can create an account: student account or teacher account.
 * [x] The student user can browse available yoga classes and book yoga classes.
-* [x] The teacher receives a confirmation when student has booked a class.
+* [x] The teacher can see when a class has been booked by the "Booked" tab indicator.
 * [x] Both student and teacher will receive an email confirmation once student has booked a class.
 * [x] Responsive UI. The user can see this information clearly on devices of various screen sizes.
 * [x] User login authentication with JWT Token. 
