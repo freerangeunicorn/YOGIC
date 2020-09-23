@@ -19,6 +19,7 @@ Software Architecture:
 CRUD application with RESTful APIs
 
 Tech Stack:
+- JavaScript (ReactJS)
 - Python
 - Flask
 - PostgreSQL
